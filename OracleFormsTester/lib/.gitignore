@@ -1,0 +1,2 @@
+# Don't add third party code to the repo
+*.jar
