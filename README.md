@@ -12,3 +12,5 @@ To use these programs first unzip the `frmall.jar` archive provided by Oracle Fo
 * MessageTester.java - Message parsers that allows easy debugging of the deserialization process.
 * OracleFormsBruteForce.java - Primitive brute-forcer for encrypted protocol messages.
 * OracleFormsSyncingBruteForce.java - Primitive brute-forcer that demonstrates the attack against an out-of-sync cipher stream. 
+
+Further information can be found in my [GWAPT Gold Paper: Automated Security Testing of Oracle Forms Applications](https://www.sans.org/reading-room/whitepapers/testing/automated-security-testing-oracle-forms-applications-35970).
