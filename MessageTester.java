@@ -40,7 +40,13 @@ class MessageTester{
                 dis.mark(16);
             	System.out.print("Read finished at:");
             	for (int i=0;i<8;i++){
-            		System.out.print(String.format("%02x", dis.readByte()));
+                    try{
+            		  System.out.print(String.format("%02x", dis.readByte()));
+                    }catch(EOFException eofe){
+                        System.out.println("");
+                        System.out.flush();
+                        return;
+                    }
             	}
             	dis.reset();
             	System.out.println("");
