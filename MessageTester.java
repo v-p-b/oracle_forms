@@ -1,6 +1,7 @@
 import java.io.*;
 import oracle.forms.engine.FormsMessage;
 import oracle.forms.engine.Message;
+import oracle.forms.engine.FormsDispatcher;
 
 class MessageTester{
 
@@ -17,7 +18,15 @@ class MessageTester{
     private static void printMessage(Message m){
         for (int i=0;i<m.size();i++){
             System.out.println("Property "+i+": "+m.getPropertyAt(i)+" Type: "+m.getPropertyTypeAt(i));
-            System.out.println("--- Value: "+m.getValueAt(i).toString());
+            if (m.getValueAt(i)==null){
+                System.out.println("--- Value: null");
+            }else{
+                System.out.println("--- Value: "+ m.getValueAt(i).toString());
+            }
+            // Testing Message serialization
+            /*if (m.getPropertyTypeAt(i)==1){
+                m.setValueAt(i,"TESTING");
+            }*/
             System.out.flush();
         }
     }
@@ -43,16 +52,21 @@ class MessageTester{
                     try{
             		  System.out.print(String.format("%02x", dis.readByte()));
                     }catch(EOFException eofe){
-                        System.out.println("");
-                        System.out.flush();
-                        return;
+                        System.out.println("\nReached EOF");
+                        break;
                     }
             	}
             	dis.reset();
             	System.out.println("");
             	System.out.flush();
-            	
+
+                /*DataOutputStream dos=new DataOutputStream(System.out);
+                m.writeDetails(new FormsDispatcher(), dos);
+                dos.flush();
+                System.out.println("");*/
             }
+        }catch(EOFException eofe){
+            System.out.println("\nReached EOF");
         }catch(IOException e){
             System.out.println("Message IOException");
             e.printStackTrace(System.out);
