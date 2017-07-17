@@ -22,6 +22,11 @@ class MessageTester{
                 System.out.println("--- Value: null");
             }else{
                 System.out.println("--- Value: "+ m.getValueAt(i).toString());
+                if (m.getValueAt(i) instanceof Message){
+                    System.out.println(">>> Begin recursive print");
+                    printMessage((Message)m.getValueAt(i));
+                    System.out.println("<<< End recursive print");
+                }
             }
             // Testing Message serialization
             /*if (m.getPropertyTypeAt(i)==1){
