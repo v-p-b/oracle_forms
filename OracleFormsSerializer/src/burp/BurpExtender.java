@@ -149,7 +149,7 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
                     txtInput.setText(dummyRequest);
                     txtInput.setEditable(true);
                 }catch(EOFException eofe){
-                    stdout.println("\nReached EOF");
+                    stdout.println("\nReached EOFin setMessage()");
                 }catch(IOException e){
                     stdout.println("Message IOException");
                     e.printStackTrace(stdout);
@@ -193,16 +193,24 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
                         }
                     }
                     m.writeDetails(new FormsDispatcher(), dos);
-
                     m_id++;
                 }
+                
             }catch(EOFException eofe){
-                stdout.println("\nReached EOF");
+                stdout.println("\nReached EOF in getMessage()");
             }catch(IOException e){
                 stdout.println("Message IOException");
                 e.printStackTrace(stdout);
             }
-            return helpers.buildHttpMessage(rInfo.getHeaders(), baos.toByteArray());
+            try{
+                dos.writeByte(-16);
+                dos.writeByte(0x01);
+                return helpers.buildHttpMessage(rInfo.getHeaders(), baos.toByteArray());
+            }catch(IOException e){
+                stdout.println("Message IOException - last bytes");
+                e.printStackTrace(stdout);
+                return null;
+            }
         }
 
         @Override
@@ -223,21 +231,14 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
 			IHttpRequestResponse baseRequestResponse) {
 		
 		List<IScannerInsertionPoint> insertionPoints=new ArrayList<IScannerInsertionPoint>();
-		/*byte[] msg=baseRequestResponse.getRequest();
+		byte[] msg=baseRequestResponse.getRequest();
 		IRequestInfo rInfo=helpers.analyzeRequest(msg);
 		byte[] body=Arrays.copyOfRange(msg, rInfo.getBodyOffset(), msg.length);
-		OracleFormsStatefulRequest ofsr=null;
-		try{
-			MessageDigest digest = MessageDigest.getInstance("SHA-256");
-			byte[] hash = digest.digest(body);
-			ofsr=formsRequests.get(new String(hash));
-		}catch(NoSuchAlgorithmException nsae){
-			stdout.println("Can't produce hash!"); 
-		}
+
 		try{
 			Message m;
 			
-			ByteArrayInputStream bis=new ByteArrayInputStream(ofsr.plainBody);
+			ByteArrayInputStream bis=new ByteArrayInputStream(body);
 			DataInputStream dis=new DataInputStream(bis);
 			ArrayList<Message> messages=new ArrayList<Message>();
 			
@@ -253,12 +254,14 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
 		    		} 
 		    	}
 			}
-		}catch(IOException e){
+		}catch(EOFException eofe){
+                stdout.println("\nReached EOF in getInsertionPoints()");
+        }catch(IOException e){
 			stdout.println("Scanner Message IOException");
 		}catch(IllegalArgumentException iae){
 			stdout.println("Scanner Message IllegalArgumentException");
 		}
-		stdout.println("Supplied "+insertionPoints.size()+" insertion points");*/
+		stdout.println("Supplied "+insertionPoints.size()+" insertion points");
 		return insertionPoints;
 	}
 	class OracleFormsInsertionPoint implements IScannerInsertionPoint{
@@ -287,33 +290,37 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
 
 		@Override
 		public byte[] buildRequest(byte[] payload) {
-            return payload;
-			/*stdout.println("buildRequest called");
+            
+			stdout.println("buildRequest called");
 			IRequestInfo rInfo=helpers.analyzeRequest(this.baseRequest);
 			messages.get(msgId).setValueAt(propId, new String(payload));
+
 			ByteArrayOutputStream baos=new ByteArrayOutputStream();
-			EncryptedOutputStream eos=new EncryptedOutputStream(baos);
-			eos.setEncryptKey(rc4Key);
-			eos.setIndexVars(reqIndexVars);
-			eos.setSeedBuffer(reqSeedBuf);
-			DataOutputStream dos=new DataOutputStream(eos);
-			try{
+			DataOutputStream dos=new DataOutputStream(baos);
+			
+            try{
 				for (int i=0;i<messages.size();i++){
 					messages.get(i).writeDetails(new FormsDispatcher(), dos);
 				}
-				dos.writeByte(-16);
-				dos.writeByte(0x01);
-				dos.flush();
-				eos.flush();
-				reqIndexVars=eos.getIndexVars().clone();
-				reqSeedBuf=eos.getSeedBuffer().clone();
-				byte[] res=baos.toByteArray();
-				stdout.println("Scanner request built: "+byteArrayToHex(res));
-				return helpers.buildHttpMessage(rInfo.getHeaders(), baos.toByteArray());
-			}catch(IOException ioe){
+			}catch(EOFException eofe){
+                stdout.println("\nReached EOF in buildRequest");
+            }catch(IOException ioe){
+                stdout.println("IOExceltion while building scanner request!");
+                ioe.printStackTrace(stdout);
 				return null;
-			}*/
-			
+			}
+            try{
+                dos.writeByte(-16);
+                dos.writeByte(0x01);
+                dos.flush();
+            }catch(IOException ioe){
+                stdout.println("IOExceltion (last bytes) while building scanner request!");
+                ioe.printStackTrace(stdout);
+                return null;
+            }
+            byte[] res=baos.toByteArray();
+            stdout.println("Scanner request built: "+byteArrayToHex(res));
+            return helpers.buildHttpMessage(rInfo.getHeaders(), baos.toByteArray());
 		}
 
 		@Override
