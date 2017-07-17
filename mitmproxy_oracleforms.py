@@ -1,5 +1,6 @@
 import binascii
 import struct
+from threading import Lock
 from mitmproxy import ctx
 
 class RC4:
@@ -47,6 +48,8 @@ class OracleForms:
         self.key=[None]*5
         self.rc4_req=None
         self.rc4_resp=None
+        self.req_lock=Lock()
+        self.resp_lock=Lock()
 
     def decrypt(self,content):
         return self.rc4.decrypt([c for c in content])
@@ -64,7 +67,10 @@ class OracleForms:
             return
         if self.key[0]!=None and "lservlet" in flow.request.url:
             ctx.log("REQUEST:\n %s" % binascii.hexlify(flow.request.content))
-            flow.request.content=bytes(self.rc4_req.encrypt(flow.request.content))
+            if not flow.request.content.endswith(b"\xf0\x01"):
+                ctx.log("[!] Invalid request message?")
+            with self.req_lock:
+                flow.request.content=bytes(self.rc4_req.encrypt(flow.request.content))
             #ctx.log(repr(self.rc4_req.decrypt([c for c in flow.request.content])))
 
     def response(self, flow):
@@ -98,7 +104,10 @@ class OracleForms:
             ctx.log("RC4 initialized with key: %s" % (repr(self.key)))
             return
         if self.key[0]!=None and "lservlet" in flow.request.url:
-            flow.response.content=self.rc4_resp.decrypt([c for c in flow.response.content])
+            with self.resp_lock:
+                flow.response.content=self.rc4_resp.decrypt([c for c in flow.response.content])
+            if not flow.response.content.endswith(b"\xf0\x01"):
+                ctx.log("[!] Invalid response message?")
             ctx.log("RESPONSE:\n %s" % binascii.hexlify(flow.response.content))
 
 def start():
