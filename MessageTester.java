@@ -16,6 +16,10 @@ class MessageTester{
         return data;
     }
     private static void printMessage(Message m){
+        if (m.isDeltaMessage()){
+            System.out.println("Delta message, Delta Index: "+m.getDeltaIndex());    
+        }
+        
         for (int i=0;i<m.size();i++){
             System.out.println("Property "+i+": "+m.getPropertyAt(i)+" Type: "+m.getPropertyTypeAt(i));
             if (m.getValueAt(i)==null){
