@@ -141,11 +141,12 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
                         for (int i=0;i<m.size();i++){
                             if (m.getPropertyTypeAt(i)==1){
                                 IParameter param=helpers.buildParameter(String.format("param_%d_%d",m_id,i), m.getValueAt(i).toString(), IParameter.PARAM_BODY);
-                                dummyRequest=helpers.addParameter(dummyRequest,param);
+                                dummyRequest=helpers.addParameter(dummyRequest, param);
                             }
                         }
                         m_id++;
                     }
+                    dummyRequest=helpers.addParameter(dummyRequest, helpers.buildParameter("original", byteArrayToHex(body), IParameter.PARAM_BODY));
                     txtInput.setText(dummyRequest);
                     txtInput.setEditable(true);
                 }catch(EOFException eofe){
@@ -169,7 +170,7 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
             IRequestInfo dummyRequest=helpers.analyzeRequest(txtInput.getText());
             HashMap<String,String> paramStrings=new HashMap<String,String>(); // Not necessarily optimal, but code is nicer...
             for (IParameter p: dummyRequest.getParameters()){
-                paramStrings.put(p.getName(), p.getValue());
+                paramStrings.put(p.getName(), helpers.urlDecode(p.getValue()));
             }
 
             IRequestInfo rInfo=helpers.analyzeRequest(currentMessage);
