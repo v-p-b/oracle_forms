@@ -50,12 +50,23 @@ class OracleForms:
         self.rc4_resp=None
         self.req_lock=Lock()
         self.resp_lock=Lock()
+        self.pragma=None
 
     def decrypt(self,content):
         return self.rc4.decrypt([c for c in content])
 
     def request(self, flow):
         flow.request.http_version="HTTP/1.0" # Workaround for MitMproxy bug #1721
+        if (self.pragma!=None) and ("lservlet" in flow.request.url) and ("pragma" in flow.request.headers):
+            try:
+                if int(flow.request.headers["pragma"])>self.pragma:
+                    self.pragma=int(flow.request.headers["pragma"])
+                else:
+                    self.pragma+=1
+                ctx.log("Setting Pragma to %d" % self.pragma)
+                flow.request.headers["pragma"]=str(self.pragma)
+            except ValueError:
+                pass
 
         if flow.request.content[0:4]==b"GDay":
             self.key=[None]*5
@@ -63,6 +74,7 @@ class OracleForms:
             self.rc4_req=None
             self.rc4_resp=None
             self.gday=struct.unpack(">I",flow.request.content[4:8])[0]
+            self.pragma=1
             ctx.log("Found GDay %X" % self.gday)
             return
         if self.key[0]!=None and "lservlet" in flow.request.url:
