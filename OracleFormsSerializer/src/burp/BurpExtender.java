@@ -63,13 +63,26 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
     	return sb.toString();
     }
     
-    private void printMessage(Message m){
-    	for (int i=0;i<m.size();i++){
-    		stdout.println("Property "+i+": "+m.getPropertyAt(i)+" Type: "+m.getPropertyTypeAt(i));
-    		if (m.getValueAt(i)!=null)
-    			stdout.println("--- Value: "+m.getValueAt(i).toString());
-    		stdout.flush();
-    	}
+    private String messageToString(Message m){
+        StringBuilder ret=new StringBuilder();
+        /*if (m.isDeltaMessage()){
+            ret.append("Delta message, Delta Index: "+m.getDeltaIndex()+"\n");    
+        }*/
+        
+        for (int i=0;i<m.size();i++){
+            ret.append("Property "+i+": "+m.getPropertyAt(i)+" Type: "+m.getPropertyTypeAt(i)+"\n");
+            if (m.getValueAt(i)==null){
+                ret.append("--- Value: null\n");
+            }else{
+                ret.append("--- Value: "+ m.getValueAt(i).toString()+"\n");
+                if (m.getValueAt(i) instanceof Message){
+                    ret.append(">>> Begin recursive print\n");
+                    ret.append(messageToString((Message)m.getValueAt(i)));
+                    ret.append("\n<<< End recursive print\n");
+                }
+            }
+        }
+        return ret.toString();
     }
     
     @Override
@@ -113,35 +126,65 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
         @Override
         public boolean isEnabled(byte[] content, boolean isRequest)
         {
-            return isRequest;
+            return true;
         }
 
         @Override
         public void setMessage(byte[] content, boolean isRequest)
         {
-            if (content == null || !isRequest)
+            if (content == null)
             {
                 // clear our display
                 txtInput.setText(null);
                 txtInput.setEditable(false);
+                return;
             }
-            else
+
+
+            IRequestInfo rInfo=helpers.analyzeRequest(helpers.buildHttpService("dummyhost",1234,false),content);
+            byte[] body=Arrays.copyOfRange(content, rInfo.getBodyOffset(), content.length);
+            String[] as=new String[256];
+            ByteArrayInputStream bis=new ByteArrayInputStream(body);
+            DataInputStream dis=new DataInputStream(bis);
+            PrintWriter stdout = new PrintWriter(callbacks.getStdout(), true);
+            Message m;
+            if(!isRequest){
+                try{
+                    StringBuilder sb=new StringBuilder();
+                    
+                    while((m=Message.readDetails(dis,as))!=null){
+                        sb.append(messageToString(m));
+                        sb.append("\n+++ Message +++\n");
+                    }
+                    txtInput.setText(sb.toString().getBytes());
+                    txtInput.setEditable(false);
+                }catch(EOFException eofe){
+                    stdout.println("\nReached EOFin setMessage()");
+                }catch(IOException e){
+                    stdout.println("Message IOException");
+                    e.printStackTrace(stdout);
+                }catch(IllegalArgumentException iae){
+                    stdout.println("Message response IllegalArgumentException");
+                    iae.printStackTrace(stdout);
+                }
+            }else
             {
-                PrintWriter stdout = new PrintWriter(callbacks.getStdout(), true);
-            	IRequestInfo rInfo=helpers.analyzeRequest(helpers.buildHttpService("dummyhost",1234,false),content);
-        		byte[] body=Arrays.copyOfRange(content, rInfo.getBodyOffset(), content.length);
-                String[] as=new String[256];
-        		ByteArrayInputStream bis=new ByteArrayInputStream(body);
-                DataInputStream dis=new DataInputStream(bis);
-                int m_id=0;
                 byte[] dummyRequest=helpers.buildHttpRequest(rInfo.getUrl()); // [TODO] POST plz
-                Message m;
+                int m_id=0;
+                
                 try{
                     while((m=Message.readDetails(dis,as))!=null){
                         for (int i=0;i<m.size();i++){
-                            if (m.getPropertyTypeAt(i)==1){
-                                IParameter param=helpers.buildParameter(String.format("param_%d_%d",m_id,i), m.getValueAt(i).toString(), IParameter.PARAM_BODY);
-                                dummyRequest=helpers.addParameter(dummyRequest, param);
+                            IParameter param;
+                            switch(m.getPropertyTypeAt(i)){
+                                case 1: // String
+                                    param=helpers.buildParameter(String.format("string_%d_%d",m_id,i), helpers.urlEncode(m.getValueAt(i).toString()), IParameter.PARAM_BODY);
+                                    dummyRequest=helpers.addParameter(dummyRequest, param);
+                                    break;
+                                case 3: // Integer
+                                    param=helpers.buildParameter(String.format("int_%d_%d",m_id,i), m.getValueAt(i).toString(), IParameter.PARAM_BODY);
+                                    dummyRequest=helpers.addParameter(dummyRequest, param);
+                                    break;
                             }
                         }
                         m_id++;
@@ -169,8 +212,13 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
 
             IRequestInfo dummyRequest=helpers.analyzeRequest(txtInput.getText());
             HashMap<String,String> paramStrings=new HashMap<String,String>(); // Not necessarily optimal, but code is nicer...
+            HashMap<String,Integer> paramInts=new HashMap<String,Integer>(); 
             for (IParameter p: dummyRequest.getParameters()){
-                paramStrings.put(p.getName(), helpers.urlDecode(p.getValue()));
+                if (p.getName().startsWith("string_")){
+                    paramStrings.put(p.getName(), helpers.urlDecode(p.getValue()));
+                }else if(p.getName().startsWith("int_")){
+                    paramInts.put(p.getName(), Integer.parseInt(p.getValue()));
+                }
             }
 
             IRequestInfo rInfo=helpers.analyzeRequest(currentMessage);
@@ -186,10 +234,13 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
                 while((m=Message.readDetails(dis,as))!=null){
                     for (int i=0;i<m.size();i++){
                         if (m.getPropertyTypeAt(i)==1){
-                            String key=String.format("param_%d_%d",m_id,i);
+                            String key=String.format("string_%d_%d",m_id,i);
                             if (paramStrings.containsKey(key)){
-                                stdout.println("Setting value for "+key);
+                                stdout.println("Setting String value for "+key);
                                 m.setValueAt(i, paramStrings.get(key));
+                            }else if (paramInts.containsKey(key)){
+                                stdout.println("Setting Integer value for "+key);
+                                m.setValueAt(i, paramInts.get(key));
                             }
                         }
                     }
