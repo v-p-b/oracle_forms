@@ -65,10 +65,15 @@ Configure Burp to use the upstream proxy 127.0.0.1:8081!
 
 Now you can start your Oracle Form application, configured to use Burp as its proxy. The MitMproxy script will replace `frmall.jar` the client downloads with the patched one, so the client won't encrypt its messages. The OracleFormSerializer extension will then do message serialization for you. Messages will be translated to standard HTTP GET requests in the OracleForms request editor tab with String parameters provided in a query string in the Message body. If you edit these parameters the extension will automatically update the original binary Forms message appropriately (e.g. in Repeater). The extension will also register new insertion points for the Scanner so you can use that too (keep in mind that insertion points provided by Burp will probably break stuff though!).
 
+Common Errors
+-------------
+
+* FRM-92095: Oracle Forms won't start until you convince it that Java is still owned by Sun Microsystems... Create a system wide environment variable (as described [here](https://blogs.oracle.com/ptian/solution-for-error-frm-92095:-oracle-jnitiator-version-too-low)): `JAVA_TOOL_OPTIONS='-Djava.vendor="Sun Microsystems Inc."'`
+* FRM-92101: `frmall.jar` is cached by the browser so if serve a patched version and then remove the mitmproxy script for some reason (e.g. live demo at a conference...) the browser will then send an `If-Modified-Since` header to the original server so it won't serve the new (unpatched) JAR. As a result the server-side decryption won't work. You can resolve this by removing the mentioned header from the HTTP request. The cause can be of course any other problem resulting in invalid streams being decrypted by the server. 
+
 Pro Tips
 --------
 
-* FRM-92095: Oracle Forms won't start until you convince it that Java is still owned by Sun Microsystems... Create a system wide environment variable (as described [here](https://blogs.oracle.com/ptian/solution-for-error-frm-92095:-oracle-jnitiator-version-too-low)): `JAVA_TOOL_OPTIONS='-Djava.vendor="Sun Microsystems Inc."'`
 * If something goes wrong you'll probably want to restart MitMproxy so the objects will be reinitialized to a clean state
 * Scan only with a single thread
 * Disable default Scanner insertion points
