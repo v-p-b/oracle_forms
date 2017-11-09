@@ -57,17 +57,22 @@ class OracleForms:
 
     def request(self, flow):
         flow.request.http_version="HTTP/1.0" # Workaround for MitMproxy bug #1721
+        
         if (self.pragma!=None) and ("lservlet" in flow.request.url) and ("pragma" in flow.request.headers):
             try:
-                if int(flow.request.headers["pragma"])>self.pragma:
-                    self.pragma=int(flow.request.headers["pragma"])
+                p=int(flow.request.headers["pragma"])
+                if abs(p)>self.pragma:
+                    self.pragma=abs(p)
                 else:
                     self.pragma+=1
-                ctx.log("Setting Pragma to %d" % self.pragma)
-                flow.request.headers["pragma"]=str(self.pragma)
+                if p>=0:
+                    flow.request.headers["pragma"]=str(self.pragma)
+                else:
+                    flow.request.headers["pragma"]=str(self.pragma*-1)
+                ctx.log("[!] Set Pragma to %d" % self.pragma)
             except ValueError:
                 pass
-
+        
         if flow.request.content[0:4]==b"GDay":
             self.key=[None]*5
             self.mate=None
@@ -79,6 +84,9 @@ class OracleForms:
             return
         if self.key[0]!=None and "lservlet" in flow.request.url:
             ctx.log("REQUEST:\n %s" % binascii.hexlify(flow.request.content))
+            if len(flow.request.content)==0:
+                ctx.log("[!] Empty message")
+                return
             if not flow.request.content.endswith(b"\xf0\x01"):
                 ctx.log("[!] Invalid request message?")
             with self.req_lock:
@@ -115,7 +123,7 @@ class OracleForms:
 
             ctx.log("RC4 initialized with key: %s" % (repr(self.key)))
             return
-        if self.key[0]!=None and "lservlet" in flow.request.url:
+        if self.key[0]!=None and "lservlet" in flow.request.url and flow.response.headers['content-type']=="application/octet-stream":
             with self.resp_lock:
                 flow.response.content=self.rc4_resp.decrypt([c for c in flow.response.content])
             if not flow.response.content.endswith(b"\xf0\x01"):
