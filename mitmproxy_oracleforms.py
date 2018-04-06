@@ -4,6 +4,7 @@ from threading import Lock
 from mitmproxy import ctx
 import requests
 import time
+import argparse
 
 class RC4:
     def __init__(self):
@@ -44,7 +45,7 @@ class RC4:
 
 
 class OracleForms:
-    def __init__(self):
+    def __init__(self, maxwait=-1):
         self.gday=None
         self.mate=None
         self.key=[None]*5
@@ -53,6 +54,11 @@ class OracleForms:
         self.req_lock=Lock()
         self.resp_lock=Lock()
         self.pragma=None
+        self.max_wait=int(maxwait)
+        wait_msg="unlimited"
+        if self.max_wait>=0:
+            wait_msg="%d ms" % (self.max_wait)
+        ctx.log("[+] Maximum wait time: %s" % (wait_msg))
 
     def decrypt(self,content):
         return self.rc4.decrypt([c for c in content])
@@ -129,10 +135,14 @@ class OracleForms:
             with self.resp_lock:
                 with self.req_lock:
                     wait=int(flow.response.content.split(b"/")[1])
+                    total_wait=0
                     headers=flow.request.headers
                     self.pragema=abs(self.pragma) # making sure Pragma is not negative
                     while True:
-                        ctx.log("[!] Handling ifError:11: %d ms timeout" % wait)
+                        total_wait += wait
+                        if self.max_wait >= 0 and total_wait > self.max_wait: 
+                            break
+                        ctx.log("[!] Handling ifError:11 - %d ms timeout" % wait)
                         time.sleep(wait / 1000.0)
                         self.pragma += 1 
                         headers["Pragma"] = "%d" % (-1*self.pragma)
@@ -144,8 +154,8 @@ class OracleForms:
                             flow.response.content=self.rc4_resp.decrypt([c for c in r.content])
                             flow.response.headers["Content-Type"]="application/octet-stream"
                             flow.response.headers["Content-Length"]=str(len(flow.response.content))
+                            ctx.log("[+] Timeout handled")
                             break
-                    ctx.log("[+] Timeout handled")
             return # Response already decrypted, we can return now
 
         if self.key[0]!=None and "lservlet" in flow.request.url and flow.response.headers['content-type']=="application/octet-stream":
@@ -156,4 +166,7 @@ class OracleForms:
             ctx.log("RESPONSE:\n %s" % binascii.hexlify(flow.response.content))
 
 def start():
-    return OracleForms()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--maxwait", type=int, default=-1)
+    args = parser.parse_args()
+    return OracleForms(maxwait=args.maxwait)
