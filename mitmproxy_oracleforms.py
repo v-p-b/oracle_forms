@@ -55,6 +55,7 @@ class OracleForms:
         self.resp_lock=Lock()
         self.pragma=None
         self.max_wait=int(maxwait)
+        self.total_wait=0
         wait_msg="unlimited"
         if self.max_wait>=0:
             wait_msg="%d ms" % (self.max_wait)
@@ -133,14 +134,13 @@ class OracleForms:
             return
         if b"ifError:11/" in flow.response.content:
             with self.resp_lock:
-                with self.req_lock:
+                with self.req_lock: # We don't want any inteference with other requests
                     wait=int(flow.response.content.split(b"/")[1])
-                    total_wait=0
                     headers=flow.request.headers
                     self.pragema=abs(self.pragma) # making sure Pragma is not negative
                     while True:
-                        total_wait += wait
-                        if self.max_wait >= 0 and total_wait > self.max_wait: 
+                        self.total_wait += wait
+                        if self.max_wait >= 0 and self.total_wait > self.max_wait: 
                             break
                         ctx.log("[!] Handling ifError:11 - %d ms timeout" % wait)
                         time.sleep(wait / 1000.0)
@@ -154,12 +154,14 @@ class OracleForms:
                             flow.response.content=self.rc4_resp.decrypt([c for c in r.content])
                             flow.response.headers["Content-Type"]="application/octet-stream"
                             flow.response.headers["Content-Length"]=str(len(flow.response.content))
+                            self.total_wait = 0
                             ctx.log("[+] Timeout handled")
                             break
             return # Response already decrypted, we can return now
 
         if self.key[0]!=None and "lservlet" in flow.request.url and flow.response.headers['content-type']=="application/octet-stream":
             with self.resp_lock:
+                self.total_wait = 0
                 flow.response.content=self.rc4_resp.decrypt([c for c in flow.response.content])
             if not flow.response.content.endswith(b"\xf0\x01"):
                 ctx.log("[!] Invalid response message?")
