@@ -2,6 +2,8 @@ import binascii
 import struct
 from threading import Lock
 from mitmproxy import ctx
+import requests
+import time
 
 class RC4:
     def __init__(self):
@@ -123,6 +125,29 @@ class OracleForms:
 
             ctx.log("RC4 initialized with key: %s" % (repr(self.key)))
             return
+        if b"ifError:11/" in flow.response.content:
+            with self.resp_lock:
+                with self.req_lock:
+                    wait=int(flow.response.content.split(b"/")[1])
+                    headers=flow.request.headers
+                    self.pragema=abs(self.pragma) # making sure Pragma is not negative
+                    while True:
+                        ctx.log("[!] Handling ifError:11: %d ms timeout" % wait)
+                        time.sleep(wait / 1000.0)
+                        self.pragma += 1 
+                        headers["Pragma"] = "%d" % (-1*self.pragma)
+                        headers["Content-Length"] = "0"
+                        r=requests.post(flow.request.url, headers=headers, data=None)
+                        if r.headers['content-type'] == "text/plain":
+                            wait=int(r.content.split(b"/")[1])
+                        else:
+                            flow.response.content=self.rc4_resp.decrypt([c for c in r.content])
+                            flow.response.headers["Content-Type"]="application/octet-stream"
+                            flow.response.headers["Content-Length"]=str(len(flow.response.content))
+                            break
+                    ctx.log("[+] Timeout handled")
+            return # Response already decrypted, we can return now
+
         if self.key[0]!=None and "lservlet" in flow.request.url and flow.response.headers['content-type']=="application/octet-stream":
             with self.resp_lock:
                 flow.response.content=self.rc4_resp.decrypt([c for c in flow.response.content])
