@@ -70,7 +70,7 @@ Common Errors
 
 * FRM-92095: Oracle Forms won't start until you convince it that Java is still owned by Sun Microsystems... Create a system wide environment variable (as described [here](https://blogs.oracle.com/ptian/solution-for-error-frm-92095:-oracle-jnitiator-version-too-low)): `JAVA_TOOL_OPTIONS='-Djava.vendor="Sun Microsystems Inc."'`
 * FRM-92101: `frmall.jar` is cached by the browser so if serve a patched version and then remove the mitmproxy script for some reason (e.g. live demo at a conference...) the browser will then send an `If-Modified-Since` header to the original server so it won't serve the new (unpatched) JAR. As a result the server-side decryption won't work. You can resolve this by removing the mentioned header from the HTTP request. The cause can be of course any other problem resulting in invalid streams being decrypted by the server. 
-* `ifError: 11/xxx` on server responses: These messages [instruct the client](https://community.oracle.com/docs/DOC-893120) to wait xxx milliseconds and try to send the request again. This error usually comes up when you try to send requests from multiple threads (this can happen when the legit client and some test tool are running simultaneously). Don't issue multi-threaded requestsas we only have a single keystream to work with, always use a single thread! Another possiblity is that the frequency of your requests is too high and/or the server load is too high. 
+* `ifError: 11/xxx` on server responses: These messages [instruct the client](https://community.oracle.com/docs/DOC-893120) to wait xxx milliseconds and try to retrieve the request by sending an empty request again. This should be properly handled by the mitmproxy script now.
 
 Pro Tips
 --------
