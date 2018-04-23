@@ -27,7 +27,7 @@ This is a new implementation that moves encryption state away from the client an
 
 Start MitMproxy with the provided script:
 ```
-mitmproxy -s mitmproxy_oracleforms.py -p 8081
+mitmdump -s mitmproxy_oracleforms.py -p 8081
 ```
 
 The script was written for MitMproxy 3.x.x, earlier major versions will not work!
