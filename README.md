@@ -56,8 +56,16 @@ Update `frmall.jar` with the updated `.class` files, and delete `META-INF/ORA*` 
 
 Start MitMproxy with the provided script:
 ```
-mitmproxy -s mitmproxy_oracleforms.py -p 8081
+mitmproxy -s mitmproxy_oracleforms.py -p 8081 -e
 ```
+
+The script now handles "wait" error codes ([ifError:11](https://community.oracle.com/docs/DOC-893120)) that instruct the client to wait before it can retrieve the results from the server. The maximum wait time can be configured in the command line (value given in milliseconds):
+
+```
+mitmproxy -s "mitmproxy_oracleforms.py --max_wait 10000" -p 8081 -e # Wait at most 10s
+```
+
+By default the wait time is unlimited. After the limit is reached the error codes are passed back to the client that should handle them appropriately. Handling these errors in the proxy allows downstream scripts to make detections based on the RTT of a single request instead of parsing multiple messages.
 
 The script was written for MitMproxy 1.x.x (tested with 1.0.2), other major version will not work!
 
