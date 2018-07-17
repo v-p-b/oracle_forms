@@ -4,7 +4,6 @@ from threading import Lock
 from mitmproxy import ctx
 import requests
 import time
-import argparse
 
 class RC4:
     def __init__(self):
@@ -45,7 +44,7 @@ class RC4:
 
 
 class OracleForms:
-    def __init__(self, maxwait=-1):
+    def __init__(self):
         self.gday=None
         self.mate=None
         self.key=[None]*5
@@ -54,18 +53,29 @@ class OracleForms:
         self.req_lock=Lock()
         self.resp_lock=Lock()
         self.pragma=None
-        self.max_wait=int(maxwait)
         self.total_wait=0
-        wait_msg="unlimited"
-        if self.max_wait>=0:
-            wait_msg="%d ms" % (self.max_wait)
-        ctx.log("[+] Maximum wait time: %s" % (wait_msg))
+        
 
     def decrypt(self,content):
         return self.rc4.decrypt([c for c in content])
 
+    def load(self, loader):
+        loader.add_option(
+            name = "corrupt_handshake",
+            typespec = bool,
+            default = True,
+            help = "Corrupt handshake to force the client to communicate in plain text (no frmall.jar patching is needed)",
+        )
+        loader.add_option(
+            name = "max_wait",
+            typespec = int,
+            default = -1,
+            help = "Maximum wait time",
+        )
+
     def request(self, flow):
-        flow.request.http_version="HTTP/1.0" # Workaround for MitMproxy bug #1721
+        ctx.log("Max wait: %d" % ctx.options.max_wait)
+        #flow.request.http_version="HTTP/1.0" # Workaround for MitMproxy bug #1721
         
         if (self.pragma!=None) and ("lservlet" in flow.request.url) and ("pragma" in flow.request.headers):
             try:
@@ -104,7 +114,7 @@ class OracleForms:
 
     def response(self, flow):
         
-        if "frmall.jar" in flow.request.url:
+        if not ctx.options.corrupt_handshake and "frmall.jar" in flow.request.url:
             ctx.log("Serving patched frmall.jar")
             patched=open("/tmp/frmall.jar","rb").read()
             flow.response.content=patched
@@ -131,6 +141,8 @@ class OracleForms:
             self.rc4_resp.setKey(self.key)
 
             ctx.log("RC4 initialized with key: %s" % (repr(self.key)))
+            if ctx.options.corrupt_handshake:
+                flow.response.replace("Mate", "Matf")
             return
         if b"ifError:11/" in flow.response.content:
             with self.resp_lock:
@@ -140,7 +152,7 @@ class OracleForms:
                     self.pragema=abs(self.pragma) # making sure Pragma is not negative
                     while True:
                         self.total_wait += wait
-                        if self.max_wait >= 0 and self.total_wait > self.max_wait: 
+                        if ctx.options.max_wait >= 0 and self.total_wait > ctx.options.max_wait: 
                             break
                         ctx.log("[!] Handling ifError:11 - %d ms timeout" % wait)
                         time.sleep(wait / 1000.0)
@@ -167,8 +179,6 @@ class OracleForms:
                 ctx.log("[!] Invalid response message?")
             ctx.log("RESPONSE:\n %s" % binascii.hexlify(flow.response.content))
 
-def start():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--maxwait", type=int, default=-1)
-    args = parser.parse_args()
-    return OracleForms(maxwait=args.maxwait)
+addons=[ 
+    OracleForms()
+]
