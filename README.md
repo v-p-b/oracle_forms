@@ -8,7 +8,7 @@ OracleFormsTester
 
 The `OracleFormsTester/` directory contains a Burp Suite extension that performs decryption, Message parsing and Scanner insertion point selection (Eclipse project).
 
-To use these programs include `frmall.jar` archive provided by Oracle Forms  in your classpath.
+To use these programs include `frmall.jar` archive provided by Oracle Forms  in your classpath. New Burp versions seem to have changed how Java libraries are being loaded (see #9). The folder with the fmrall.jar must be added to the JAVA Environment in the BurpSuite Extender Options. 
 
 The following files outside the extension directory are simple utility programs that can help further develop the extension:
 
@@ -34,7 +34,7 @@ Start mitmproxy with the provided script:
 mitmdump -s mitmproxy_oracleforms.py -p 8081 
 ```
 
-Configure Burp to use the upstream proxy 127.0.0.1:8081 and load the OracleFormsSerializer extension! 
+Configure Burp to use the upstream proxy 127.0.0.1:8081 and load the OracleFormsSerializer extension! New Burp versions seem to have changed how Java libraries are being loaded (see #9). The folder with the fmrall.jar must be added to the JAVA Environment in the BurpSuite Extender Options. 
 
 Now you can start your Oracle Forms application, configured to use Burp as its proxy. The mitmproxy script will corrupt the handshake, so the client won't encrypt its messages. The OracleFormSerializer extension will then do message serialization for you. Messages will be translated to standard HTTP GET requests in the OracleForms request editor tab with String parameters provided in a query string in the Message body. If you edit these parameters the extension will automatically update the original binary Forms message appropriately (e.g. in Repeater). The extension will also register new insertion points for the Scanner so you can use that too (keep in mind that insertion points provided by Burp will probably break stuff though!).
 
