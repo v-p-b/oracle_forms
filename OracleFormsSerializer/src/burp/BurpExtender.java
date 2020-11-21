@@ -20,20 +20,20 @@ import oracle.forms.engine.FormsDispatcher;
 import oracle.forms.engine.FormsMessage;
 import oracle.forms.engine.Message;
 
-public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IScannerInsertionPointProvider
+public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IScannerInsertionPointProvider, IHttpListener
 {
-	private PrintWriter stdout;
-	private IBurpExtenderCallbacks callbacks;
-	private IExtensionHelpers helpers;
-	private byte[] clientKey=null;
-	private byte[] serverKey=null;
-	private byte[] rc4Key=new byte[5];
-	private int[] reqSeedBuf=null;
-	private int[] reqIndexVars=null;
-	private int[] respSeedBuf=null;
-	private int[] respIndexVars=null;
-	private static String[] as=new String[256];
-	
+    private PrintWriter stdout;
+    private IBurpExtenderCallbacks callbacks;
+    private IExtensionHelpers helpers;
+    private byte[] clientKey=null;
+    private byte[] serverKey=null;
+    private byte[] rc4Key=new byte[5];
+    private int[] reqSeedBuf=null;
+    private int[] reqIndexVars=null;
+    private int[] respSeedBuf=null;
+    private int[] respIndexVars=null;
+    private static String[] as=new String[256];
+    
     @Override
     public void registerExtenderCallbacks(IBurpExtenderCallbacks callbacks)
     {   
@@ -50,17 +50,18 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
         //callbacks.registerProxyListener(this);
         callbacks.registerMessageEditorTabFactory(this);
         callbacks.registerScannerInsertionPointProvider(this);
+        callbacks.registerHttpListener(this);
     }
     
     public boolean gotKey(){
-    	return this.clientKey!=null && this.serverKey!=null;
+        return this.clientKey!=null && this.serverKey!=null;
     }
     
     public static String byteArrayToHex(byte[] a) {
-    	StringBuilder sb = new StringBuilder(a.length * 2);
-    	for(byte b: a)
-    		sb.append(String.format("%02x", b & 0xff));
-    	return sb.toString();
+        StringBuilder sb = new StringBuilder(a.length * 2);
+        for(byte b: a)
+            sb.append(String.format("%02x", b & 0xff));
+        return sb.toString();
     }
     
     private String messageToString(Message m){
@@ -85,6 +86,48 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
         return ret.toString();
     }
     
+
+    @Override
+    public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse messageInfo){
+        PrintWriter stdout = new PrintWriter(callbacks.getStdout(), true);
+
+        if(!messageIsRequest){  // We don't care if it's not a request
+            return;
+        }
+
+        byte[] msg=messageInfo.getRequest();
+        IRequestInfo rInfo=helpers.analyzeRequest(messageInfo);
+
+        if (rInfo.getUrl().toString().indexOf("/lservlet") == -1 || rInfo.getMethod() != "POST"){ // We don't care if it's not a POST for Forms
+            return; 
+        }
+
+        byte[] handshakeBody=Arrays.copyOfRange(msg, rInfo.getBodyOffset(), rInfo.getBodyOffset() + 4);
+        if (Arrays.equals(handshakeBody, new byte[] {0x47, 0x44, 0x61, 0x79} )){ // We don't care about the intial handshake
+            stdout.println("Ignoring handshake in HTTP Listener");
+            return;
+        }
+
+        byte[] body=Arrays.copyOfRange(msg, rInfo.getBodyOffset(), msg.length);
+        
+        if (body.length == 0){ // We don't care about empty bodies
+            return;
+        }
+
+        String[] as=new String[256];
+        ByteArrayInputStream bis=new ByteArrayInputStream(body);
+        DataInputStream dis=new DataInputStream(bis);
+        Message m;
+        try{
+            while((m=Message.readDetails(dis,as))!=null){}
+        }catch(Exception e){
+            stdout.println("Caught exception while decoding Forms HTTP request! Redirecting to localhost...");
+            messageInfo.setHttpService(helpers.buildHttpService("127.0.0.1",65535,false));
+        }
+
+
+    }
+
     @Override
     public IMessageEditorTab createNewInstance(IMessageEditorController controller, boolean editable)
     {
@@ -278,89 +321,89 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
         }
     }
 
-	@Override
-	public List<IScannerInsertionPoint> getInsertionPoints(
-			IHttpRequestResponse baseRequestResponse) {
-		
-		List<IScannerInsertionPoint> insertionPoints=new ArrayList<IScannerInsertionPoint>();
-		byte[] msg=baseRequestResponse.getRequest();
-		IRequestInfo rInfo=helpers.analyzeRequest(msg);
-		byte[] body=Arrays.copyOfRange(msg, rInfo.getBodyOffset(), msg.length);
+    @Override
+    public List<IScannerInsertionPoint> getInsertionPoints(
+            IHttpRequestResponse baseRequestResponse) {
+        
+        List<IScannerInsertionPoint> insertionPoints=new ArrayList<IScannerInsertionPoint>();
+        byte[] msg=baseRequestResponse.getRequest();
+        IRequestInfo rInfo=helpers.analyzeRequest(msg);
+        byte[] body=Arrays.copyOfRange(msg, rInfo.getBodyOffset(), msg.length);
 
-		try{
-			Message m;
-			
-			ByteArrayInputStream bis=new ByteArrayInputStream(body);
-			DataInputStream dis=new DataInputStream(bis);
-			ArrayList<Message> messages=new ArrayList<Message>();
-			
-			while((m=Message.readDetails(dis,as))!=null){
-				stdout.println("Adding message as potential insertion point");
-				messages.add(m);
-			}
-			for (int i=0;i<messages.size();i++){
-				Message mi=messages.get(i);
-		    	for (int j=0;j<mi.size();j++){
-		    		if (mi.getPropertyTypeAt(j)==1){ // String property
-		    			insertionPoints.add(new OracleFormsInsertionPoint(baseRequestResponse.getRequest(),messages, i, j));
-		    		} 
-		    	}
-			}
-		}catch(EOFException eofe){
+        try{
+            Message m;
+            
+            ByteArrayInputStream bis=new ByteArrayInputStream(body);
+            DataInputStream dis=new DataInputStream(bis);
+            ArrayList<Message> messages=new ArrayList<Message>();
+            
+            while((m=Message.readDetails(dis,as))!=null){
+                stdout.println("Adding message as potential insertion point");
+                messages.add(m);
+            }
+            for (int i=0;i<messages.size();i++){
+                Message mi=messages.get(i);
+                for (int j=0;j<mi.size();j++){
+                    if (mi.getPropertyTypeAt(j)==1){ // String property
+                        insertionPoints.add(new OracleFormsInsertionPoint(baseRequestResponse.getRequest(),messages, i, j));
+                    } 
+                }
+            }
+        }catch(EOFException eofe){
                 stdout.println("\nReached EOF in getInsertionPoints()");
         }catch(IOException e){
-			stdout.println("Scanner Message IOException");
-		}catch(IllegalArgumentException iae){
-			stdout.println("Scanner Message IllegalArgumentException");
-		}
-		stdout.println("Supplied "+insertionPoints.size()+" insertion points");
-		return insertionPoints;
-	}
-	class OracleFormsInsertionPoint implements IScannerInsertionPoint{
-		private int propId=0;
-		private int msgId=0;
+            stdout.println("Scanner Message IOException");
+        }catch(IllegalArgumentException iae){
+            stdout.println("Scanner Message IllegalArgumentException");
+        }
+        stdout.println("Supplied "+insertionPoints.size()+" insertion points");
+        return insertionPoints;
+    }
+    class OracleFormsInsertionPoint implements IScannerInsertionPoint{
+        private int propId=0;
+        private int msgId=0;
 
-		private ArrayList<Message> messages=new ArrayList<Message>();
-		private byte[] baseRequest=null;
-		
-		public OracleFormsInsertionPoint(byte[] baseRequest,ArrayList<Message> messages, int msgId, int propId){
-			this.messages=messages;
-			this.msgId=msgId;
-			this.propId=propId;
-			this.baseRequest=baseRequest;
-		}
-		
-		@Override
-		public String getInsertionPointName() {
-			return "Oracle Forms insertion point";
-		}
+        private ArrayList<Message> messages=new ArrayList<Message>();
+        private byte[] baseRequest=null;
+        
+        public OracleFormsInsertionPoint(byte[] baseRequest,ArrayList<Message> messages, int msgId, int propId){
+            this.messages=messages;
+            this.msgId=msgId;
+            this.propId=propId;
+            this.baseRequest=baseRequest;
+        }
+        
+        @Override
+        public String getInsertionPointName() {
+            return "Oracle Forms insertion point";
+        }
 
-		@Override
-		public String getBaseValue() {
-			return messages.get(msgId).getValueAt(propId).toString();
-		}
+        @Override
+        public String getBaseValue() {
+            return messages.get(msgId).getValueAt(propId).toString();
+        }
 
-		@Override
-		public byte[] buildRequest(byte[] payload) {
+        @Override
+        public byte[] buildRequest(byte[] payload) {
             
-			stdout.println("buildRequest called");
-			IRequestInfo rInfo=helpers.analyzeRequest(this.baseRequest);
-			messages.get(msgId).setValueAt(propId, new String(payload));
+            stdout.println("buildRequest called");
+            IRequestInfo rInfo=helpers.analyzeRequest(this.baseRequest);
+            messages.get(msgId).setValueAt(propId, new String(payload));
 
-			ByteArrayOutputStream baos=new ByteArrayOutputStream();
-			DataOutputStream dos=new DataOutputStream(baos);
-			
+            ByteArrayOutputStream baos=new ByteArrayOutputStream();
+            DataOutputStream dos=new DataOutputStream(baos);
+            
             try{
-				for (int i=0;i<messages.size();i++){
-					messages.get(i).writeDetails(new FormsDispatcher(), dos);
-				}
-			}catch(EOFException eofe){
+                for (int i=0;i<messages.size();i++){
+                    messages.get(i).writeDetails(new FormsDispatcher(), dos);
+                }
+            }catch(EOFException eofe){
                 stdout.println("\nReached EOF in buildRequest");
             }catch(IOException ioe){
                 stdout.println("IOExceltion while building scanner request!");
                 ioe.printStackTrace(stdout);
-				return null;
-			}
+                return null;
+            }
             try{
                 dos.writeByte(-16);
                 dos.writeByte(0x01);
@@ -373,17 +416,17 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
             byte[] res=baos.toByteArray();
             stdout.println("Scanner request built: "+byteArrayToHex(res));
             return helpers.buildHttpMessage(rInfo.getHeaders(), baos.toByteArray());
-		}
+        }
 
-		@Override
-		public int[] getPayloadOffsets(byte[] payload) {
-			return null;
-		}
+        @Override
+        public int[] getPayloadOffsets(byte[] payload) {
+            return null;
+        }
 
-		@Override
-		public byte getInsertionPointType() {
-			return INS_EXTENSION_PROVIDED;
-		}
-		
-	}
+        @Override
+        public byte getInsertionPointType() {
+            return INS_PARAM_BODY;
+        }
+        
+    }
 }
