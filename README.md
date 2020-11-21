@@ -58,6 +58,11 @@ See [JARPATCH.md](JARPATCH.md)
 
 The script was upgraded to support mitmproxy 4 (tested with 4.0.3), should also work with version 3.
 
+### Tutorials
+
+* [Corrupting Ancient Spirits - Hacktivity'17 presentation](https://www.youtube.com/watch?v=hEoeDPk4TOE)
+* [Setting up OracleFormsSerializer](https://vimeo.com/482011043)
+
 Common Errors
 -------------
 
