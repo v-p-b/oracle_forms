@@ -89,8 +89,6 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
 
     @Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse messageInfo){
-        PrintWriter stdout = new PrintWriter(callbacks.getStdout(), true);
-
         if(!messageIsRequest){  // We don't care if it's not a request
             return;
         }
@@ -118,14 +116,17 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
         ByteArrayInputStream bis=new ByteArrayInputStream(body);
         DataInputStream dis=new DataInputStream(bis);
         Message m;
+
         try{
+            if (body[body.length-2] != (byte)0xf0){
+                throw new IllegalArgumentException("Illegal close Message detected!");
+            }
             while((m=Message.readDetails(dis,as))!=null){}
         }catch(Exception e){
             stdout.println("Caught exception while decoding Forms HTTP request! Redirecting to localhost...");
+            stdout.println(e.getMessage());
             messageInfo.setHttpService(helpers.buildHttpService("127.0.0.1",65535,false));
         }
-
-
     }
 
     @Override
@@ -388,14 +389,18 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
             
             stdout.println("buildRequest called");
             IRequestInfo rInfo=helpers.analyzeRequest(this.baseRequest);
-            messages.get(msgId).setValueAt(propId, new String(payload));
+            //messages.get(msgId).setValueAt(propId, new String(payload));
 
             ByteArrayOutputStream baos=new ByteArrayOutputStream();
             DataOutputStream dos=new DataOutputStream(baos);
             
             try{
                 for (int i=0;i<messages.size();i++){
-                    messages.get(i).writeDetails(new FormsDispatcher(), dos);
+                    Message m=messages.get(i);
+                    if (i == msgId){
+                        m.setValueAt(propId, new String(payload));
+                    }
+                    m.writeDetails(new FormsDispatcher(), dos);
                 }
             }catch(EOFException eofe){
                 stdout.println("\nReached EOF in buildRequest");
@@ -425,6 +430,7 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
 
         @Override
         public byte getInsertionPointType() {
+            stdout.println("Insertion Point Type queried");
             return INS_PARAM_BODY;
         }
         
