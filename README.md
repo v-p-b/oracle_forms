@@ -58,7 +58,20 @@ See [JARPATCH.md](JARPATCH.md)
 
 The script was upgraded to support mitmproxy 4 (tested with 4.0.3), should also work with version 3.
 
-### Tutorials
+Scanner Configuration
+---------------------
+
+An exported Burp 2.x Scanner configuration is added to the repo. Main properties:
+* Limited to relevant tests
+* Virtually unlimited error thresholds (see #15)
+* Limited insertion points
+
+*Important:* In order to keep the stream ciphers in sync, you have to configure a single threaded resource pool for your scan!
+
+It is very likely that automated input will render the UI unusable and you have to restart the application! Use [Logger++](https://portswigger.net/bappstore/470b7057b86f41c396a97903377f3d81) to keep track of responses and any server-side errors (or interesting behavior)!
+
+Tutorials
+---------
 
 * [Corrupting Ancient Spirits - Hacktivity'17 presentation](https://www.youtube.com/watch?v=hEoeDPk4TOE)
 * [Setting up OracleFormsSerializer](https://vimeo.com/482011043)
