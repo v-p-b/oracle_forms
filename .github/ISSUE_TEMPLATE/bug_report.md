@@ -32,7 +32,8 @@ If applicable, add screenshots to help explain your problem.
 Add any other context about the problem here.
 
 **Sanity check**
+- [ ] I read the README from beginning to end
 - [ ] I gave a descriptive title to this issue
-- [ ] I checked the closed issues to see if my problem came up before
+- [ ] I checked the open and closed issues to see if my problem came up before
 - [ ] I tried to understand every error message I encountered when triggering this bug
 - [ ] I gave proper reproduction steps above
