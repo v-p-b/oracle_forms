@@ -38,6 +38,16 @@ Configure Burp to use the upstream proxy 127.0.0.1:8081 and load the OracleForms
 
 Now you can start your Oracle Forms application, configured to use Burp as its proxy. The mitmproxy script will corrupt the handshake, so the client won't encrypt its messages. The OracleFormSerializer extension will then do message serialization for you. Messages will be translated to standard HTTP GET requests in the OracleForms request editor tab with String parameters provided in a query string in the Message body. If you edit these parameters the extension will automatically update the original binary Forms message appropriately (e.g. in Repeater). The extension will also register new insertion points for the Scanner so you can use that too (keep in mind that insertion points provided by Burp will probably break stuff though!).
 
+### Building the Extension
+
+Download the `frmall.jar` archive from your target and copy it under `OracleFormsSerializer/lib`. Inside `OracleFormsSerializer/` start an Ant build:
+
+```
+$ ant build
+```
+
+You should find `OracleFormsSerializer.jar` under `bin/`.
+
 ### Options
 
 #### Response timeout
