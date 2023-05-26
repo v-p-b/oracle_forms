@@ -278,13 +278,14 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
                 while((m=Message.readDetails(dis,as))!=null){
                     for (int i=0;i<m.size();i++){
                         if (m.getPropertyTypeAt(i)==1){
-                            String key=String.format("string_%d_%d",m_id,i);
-                            if (paramStrings.containsKey(key)){
-                                stdout.println("Setting String value for "+key);
-                                m.setValueAt(i, paramStrings.get(key));
-                            }else if (paramInts.containsKey(key)){
-                                stdout.println("Setting Integer value for "+key);
-                                m.setValueAt(i, paramInts.get(key));
+                            String stringKey=String.format("string_%d_%d",m_id,i);
+                            String intKey=String.format("int_%d_%d",m_id,i);
+                            if (paramStrings.containsKey(stringKey)){
+                                stdout.println("Setting String value for "+stringKey);
+                                m.setValueAt(i, paramStrings.get(stringKey));
+                            }else if (paramInts.containsKey(intKey)){
+                                stdout.println("Setting Integer value for "+intKey);
+                                m.setValueAt(i, paramInts.get(intKey));
                             }
                         }
                     }
