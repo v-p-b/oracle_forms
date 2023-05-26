@@ -106,6 +106,13 @@ public class BurpExtender implements IBurpExtender, IMessageEditorTabFactory, IS
             return;
         }
 
+        byte[] handshakeBody1=Arrays.copyOfRange(msg, rInfo.getBodyOffset(), rInfo.getBodyOffset() + 8);
+        if (Arrays.equals(handshakeBody1, new byte[] {0x4e, 0x55, 0x4c, 0x4c, 0x50, 0x4f, 0x53, 0x54} )){ // We don't care about NULLPOSTs
+            stdout.println("Ignoring NULLPOST in HTTP Listener");
+            return;
+        }
+
+
         byte[] body=Arrays.copyOfRange(msg, rInfo.getBodyOffset(), msg.length);
         
         if (body.length == 0){ // We don't care about empty bodies
